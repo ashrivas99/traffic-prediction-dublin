@@ -70,4 +70,4 @@ if __name__ == "__main__":
         processCSV(df_date_okay)
 
     create_final_csv(df_final)
-    print(f"Total Time Taken to preprocess the data is f{time.time() - start_time}")
+    print(f"Total Time Taken to preprocess the data is {time.time() - start_time} seconds")
