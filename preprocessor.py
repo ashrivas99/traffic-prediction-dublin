@@ -4,7 +4,7 @@ import time
 from typing import List
 import pandas as pd
 
-DATASETS_PATH = "Datasets/traffic_volumes_data_jan_jun_2020/"
+DATASETS_PATH = "Datasets/traffic_volumes_data_city_center_jan_jun_2020/"
 FILES = glob.glob(os.path.join(DATASETS_PATH, "*.csv"))
 FINAL_CSV_PATH = os.getcwd()
 row_dict = {}
@@ -31,8 +31,6 @@ def create_final_csv(df: pd.DataFrame):
 
 
 def processCSV(df_jan):
-    df_temp = pd.DataFrame(columns=FINAL_CSV_COLUMNS)
-    df_jan = df_jan.drop(columns=DROP_COLUMN_NAMES, axis=1)
     CITY_CENTER = df_jan.Region == "CCITY"
     df_jan = df_jan[CITY_CENTER]
 
