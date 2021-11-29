@@ -1,3 +1,4 @@
+#Dataset Large Files
 Datasets/traffic_volumes_data_jan_jun_2020/scats_detector_volume_202001.csv
 Datasets/traffic_volumes_data_jan_jun_2020/scats_detector_volume_202002.csv
 Datasets/traffic_volumes_data_jan_jun_2020/scats_detector_volume_202003.csv
@@ -5,7 +6,6 @@ Datasets/traffic_volumes_data_jan_jun_2020/scats_detector_volume_202004.csv
 Datasets/traffic_volumes_data_jan_jun_2020/scats_detector_volume_202005.csv
 Datasets/traffic_volumes_data_jan_jun_2020/scats_detector_volume_202006.csv
 
-csvformat.py
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
