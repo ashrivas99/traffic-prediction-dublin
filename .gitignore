@@ -6,6 +6,8 @@ Datasets/traffic_volumes_data_jan_jun_2020/scats_detector_volume_202004.csv
 Datasets/traffic_volumes_data_jan_jun_2020/scats_detector_volume_202005.csv
 Datasets/traffic_volumes_data_jan_jun_2020/scats_detector_volume_202006.csv
 
+.vscode/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
