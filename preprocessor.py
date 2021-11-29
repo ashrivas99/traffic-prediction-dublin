@@ -1,5 +1,6 @@
 import glob
 import os
+import time
 from typing import List
 import pandas as pd
 
@@ -43,8 +44,6 @@ def processCSV(df_jan):
     _, previous_row = next(row_iterator)  # take first item from row_iterator
 
     for index, current_row in row_iterator:
-        if(index>32):
-            break
         if (previous_row['End_Time'] == current_row['End_Time'] and
                 previous_row['Site'] == current_row['Site']):
             siteDetectorsSum += previous_row['Sum_Volume']
@@ -65,11 +64,12 @@ def processCSV(df_jan):
 
 
 if __name__ == "__main__":
+    start_time = time.time()
     for id, file in enumerate(FILES, 1):
         df_file = pd.read_csv(file)
         df_date_okay = df_file.copy()
         df_date_okay['End_Time'] = pd.to_datetime(df_file['End_Time'])
         processCSV(df_date_okay)
-        break
 
     create_final_csv(df_final)
+    print(f"Total Time Taken to preprocess the data is f{time.time() - start_time}")
