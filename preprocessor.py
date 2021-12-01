@@ -69,5 +69,7 @@ if __name__ == "__main__":
         df_date_okay['End_Time'] = pd.to_datetime(df_file['End_Time'])
         processCSV(df_date_okay)
 
+    df_final.loc[df_final['Average_volume_of_all_detectors'] >= 19, 'classification_output'] = 1
+    df_final.loc[df_final['Average_volume_of_all_detectors'] < 19, 'classification_output'] = -1
     create_final_csv(df_final)
     print(f"Total Time Taken to preprocess the data is {time.time() - start_time} seconds")
