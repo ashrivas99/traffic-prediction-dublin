@@ -5,11 +5,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn import preprocessing
-from sklearn.linear_model import LogisticRegression, Ridge
+from sklearn.linear_model import Lasso, LogisticRegression, Ridge
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.model_selection import cross_val_score, train_test_split
-from sklearn.neighbors import KNeighborsRegressor
+from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.preprocessing import MinMaxScaler, PolynomialFeatures
+from sklearn.tree import DecisionTreeClassifier
 
 # High Traffic Volume Sites: 628,305,2; Medium Traffic Sites: 48,36,420,3; Low Traffic Sites : 796, 1,402, 665
 SITES_LIST = [628, 305, 2, 48, 36, 420, 3, 796, 1, 402, 665]
@@ -247,7 +248,7 @@ def featureEngineering(
     return features_XX, yy_regression, yy_classification, end_time_in_days
 
 
-def cross_val_classification(
+def cross_val_lag_classification(
     time_sampling_interval,
     y_avg_vol_cars,
     y_precipitation,
@@ -294,18 +295,14 @@ def cross_val_classification(
     plt.show()
 
 
-def find_optimal_polynomial_order(
-    X, y_classification, y_regression, c_value, model_class
-):
+def find_optimal_polynomial_order(X, y_classification, y_regression, model_class):
     mean_error = []
     std_error = []
     q_range = [1, 2, 3, 4, 5]
     for q in q_range:
         Xpoly = PolynomialFeatures(q).fit_transform(X)
-        if model_class:
-            model = LogisticRegression(
-                penalty="l2", solver="lbfgs", C=c_value, max_iter=1000000
-            )
+        if model_class == 1:
+            model = LogisticRegression(penalty="l2", solver="lbfgs", max_iter=1000000)
             scores = cross_val_score(
                 model,
                 Xpoly,
@@ -313,7 +310,12 @@ def find_optimal_polynomial_order(
                 cv=5,
                 scoring="f1",
             )
-        else:
+        elif model_class == 2:
+            model = Lasso(fit_intercept=False)
+            scores = cross_val_score(
+                model, Xpoly, y_regression, cv=5, scoring="neg_mean_squared_error"
+            )
+        elif model_class == 3:
             model = Ridge(fit_intercept=False)
             scores = cross_val_score(
                 model, Xpoly, y_regression, cv=5, scoring="neg_mean_squared_error"
@@ -328,6 +330,81 @@ def find_optimal_polynomial_order(
     plt.xlabel("q")
     plt.ylabel("F1 Score")
     plt.title("Logistic Regression Cross Validation Results: Polynomial Feature q")
+    plt.show()
+
+
+def find_optimal_C_value(X, y_classification, y_regression, model_class, Ci_range):
+    mean_error = []
+    std_error = []
+    for Ci in Ci_range:
+        if model_class == 1:
+            model = LogisticRegression(
+                penalty="l2", solver="lbfgs", C=Ci, max_iter=1000000
+            )
+            scores = cross_val_score(
+                model,
+                X,
+                y_classification,
+                cv=5,
+                scoring="f1",
+            )
+        elif model_class == 2:
+            alpha = 1 / Ci
+            model = Lasso(alpha=alpha, fit_intercept=False, max_iter=100000)
+            scores = cross_val_score(
+                model, X, y_regression, cv=5, scoring="neg_mean_squared_error"
+            )
+        elif model_class == 3:
+            alpha = 1 / (2 * Ci)
+            model = Ridge(alpha=alpha, fit_intercept=False, max_iter=100000)
+            scores = cross_val_score(
+                model, X, y_regression, cv=5, scoring="neg_mean_squared_error"
+            )
+
+        mean_error.append(np.array(scores).mean())
+        std_error.append(np.array(scores).std())
+    plt.rc("font", size=18)
+    plt.rcParams["figure.constrained_layout.use"] = True
+    plt.errorbar(Ci_range, mean_error, yerr=std_error, linewidth=3)
+    plt.xlabel("Ci")
+    plt.ylabel("F1 Score")
+    plt.title("Logistic Regression Cross Validation Results: Penalty Parameter Ci")
+    plt.show()
+
+
+def kNN_k_value_finder(X, y_classification):
+    mean_error = []
+    std_error = []
+    k_range = list(range(1, 31))
+    for k in k_range:
+        model = KNeighborsClassifier(n_neighbors=k, weights="uniform")
+        scores = cross_val_score(model, X, y_classification, cv=5, scoring="f1")
+        mean_error.append(np.array(scores).mean())
+        std_error.append(np.array(scores).std())
+    plt.rc("font", size=18)
+    plt.rcParams["figure.constrained_layout.use"] = True
+    plt.errorbar(k_range, mean_error, yerr=std_error, linewidth=3)
+    plt.xlabel("k")
+    plt.ylabel("F1 Score")
+    plt.title("kNN Cross Validation Results: k Value")
+    plt.show()
+
+
+def decision_tree_depth_value_finder(X, y_classification):
+    mean_error = []
+    std_error = []
+    depth_range = list(range(1, 31))
+    for depth in depth_range:
+        model = DecisionTreeClassifier(max_depth=1)
+        scores = cross_val_score(model, X, y_classification, cv=5, scoring="f1")
+        mean_error.append(np.array(scores).mean())
+        std_error.append(np.array(scores).std())
+    plt.rc("font", size=18)
+    plt.rcParams["figure.constrained_layout.use"] = True
+    plt.errorbar(depth_range, mean_error, yerr=std_error, linewidth=3)
+    plt.xlabel("max_depth")
+    plt.ylabel("F1 Score")
+    plt.title("Decision Tree Classifier Cross Validation Results: k Value")
     plt.show()
 
 
@@ -360,11 +437,11 @@ def main():
         np.int64
     )
 
-    visualize_site_data(timestamps_in_days, y_avg_vol_cars)
-    plot_3d_graph(df_site_1)
-    experiment_1(
-        y_avg_vol_cars, y_precipitation, timestamps_in_days, time_sampling_interval
-    )
+    # visualize_site_data(timestamps_in_days, y_avg_vol_cars)
+    # plot_3d_graph(df_site_1)
+    # experiment_1(
+    #     y_avg_vol_cars, y_precipitation, timestamps_in_days, time_sampling_interval
+    # )
 
     # putting it together
     q = 10
@@ -383,12 +460,57 @@ def main():
 
     scaler = MinMaxScaler()
     XX_scaled = scaler.fit_transform(XX)
-    find_optimal_polynomial_order(XX_scaled, yy_classification, yy_regression, 1, True)
+    find_optimal_polynomial_order(
+        XX_scaled, yy_classification, yy_regression, 1
+    )  # Log reg
+    find_optimal_polynomial_order(XX_scaled, yy_classification, yy_regression, 2)
+    find_optimal_polynomial_order(
+        XX_scaled, yy_classification, yy_regression, 3
+    )  # Ridge reg
+    polynomial_order_value = int(
+        input("Please choose the desired polynomial order 'q' value:    ")
+    )
+    XX_poly = PolynomialFeatures(polynomial_order_value).fit_transform(XX)
+
+    Ci_range_log_reg = [0.001, 0.01, 0.1, 1, 5, 10, 25, 50, 100, 250]
+    Ci_range_regression = [0.001, 0.01, 0.1, 1, 10, 100, 1000, 10000, 100000]
+    find_optimal_C_value(XX_poly, yy_classification, yy_regression, 1, Ci_range_log_reg)
+    C_value_log_reg = int(
+        input("Please choose the desired 'k' value for the Logistic Regression:    ")
+    )
+    find_optimal_C_value(
+        XX_poly, yy_classification, yy_regression, 2, Ci_range_regression
+    )
+    C_value_lasso = int(
+        input("Please choose the desired 'C' value for the Lasso Regression model:    ")
+    )
+    find_optimal_C_value(
+        XX_poly, yy_classification, yy_regression, 3, Ci_range_regression
+    )
+    C_value_ridge = int(
+        input("Please choose the desired 'C' value for the Ridge Regression model:    ")
+    )
+    kNN_k_value_finder(XX_poly, yy_classification)
+    # k-value 15
+    k_value = int(input("Please choose the desired 'k' value for the kNN model:    "))
+
+    decision_tree_depth_value_finder(XX, yy_classification)
+
+    cross_val_lag_classification(
+        time_sampling_interval,
+        y_avg_vol_cars,
+        y_precipitation,
+        y_classification,
+        timestamps_in_days,
+    )
 
     train, test = train_test_split(np.arange(0, yy_regression.size), test_size=0.2)
-    model = Ridge(fit_intercept=False).fit(XX[train], yy_regression[train])
-    print(model.intercept_, model.coef_)
-    y_pred = model.predict(XX)
+    alpha_ridge = 1 / (2 * C_value_ridge)
+    model_ridge = Ridge(fit_intercept=False, alpha=alpha_ridge).fit(
+        XX[train], yy_regression[train]
+    )
+    print(model_ridge.intercept_, model_ridge.coef_)
+    y_pred = model_ridge.predict(XX)
     plot_predictions(
         True,
         y_pred,
@@ -398,38 +520,66 @@ def main():
         time_sampling_interval,
     )
 
-    cross_val_classification(
-        time_sampling_interval,
-        y_avg_vol_cars,
-        y_precipitation,
-        y_classification,
+    alpha_lasso = 1 / C_value_lasso
+    model_lasso = Lasso(fit_intercept=False, alpha=alpha_lasso).fit(
+        XX[train], yy_regression[train]
+    )
+    print(model_lasso.intercept_, model_lasso.coef_)
+    y_pred = model_lasso.predict(XX)
+    plot_predictions(
+        True,
+        y_pred,
         timestamps_in_days,
+        y_avg_vol_cars,
+        end_time_in_days,
+        time_sampling_interval,
     )
 
     X_train, X_test, y_train, y_test = train_test_split(
         XX, yy_classification, test_size=0.2
     )
-    model_classification = LogisticRegression(
-        penalty="l2", solver="lbfgs", C=0.1, max_iter=10000
+    model_classification_log_reg = LogisticRegression(
+        penalty="l2", solver="lbfgs", C=C_value_log_reg, max_iter=10000
     )
-    model_classification.fit(X_train, y_train)
-    y_pred_classification = model_classification.predict(X_test)
-    print(model_classification.intercept_, model_classification.coef_)
-    log_reg_confusion_matrix = confusion_matrix(y_test, y_pred_classification)
-    log_reg_classification_report = classification_report(
-        y_test, y_pred_classification, zero_division=1
-    )
+    model_classification_log_reg.fit(X_train, y_train)
+    y_pred_log_reg = model_classification_log_reg.predict(X_test)
+    print(model_classification_log_reg.intercept_, model_classification_log_reg.coef_)
+    log_reg_confusion_matrix = confusion_matrix(y_test, y_pred_log_reg)
+    log_reg_classification_report = classification_report(y_test, y_pred_log_reg)
+    print("LOGG REGG")
     print(log_reg_confusion_matrix)
     print(log_reg_classification_report)
+
+    model_classification_kNN = KNeighborsClassifier(
+        n_neighbors=k_value, weights="uniform"
+    )
+    model_classification_kNN.fit(X_train, y_train)
+    y_pred_kNN = model_classification_kNN.predict(X_test)
+    kNN_confusion_matrix = confusion_matrix(y_test, y_pred_kNN)
+    kNN_classification_report = classification_report(y_test, y_pred_kNN)
+    print("KNN")
+    print(kNN_confusion_matrix)
+    print(kNN_classification_report)
+
+    model_classification_DecisionTree = DecisionTreeClassifier(max_depth=1)
+    model_classification_DecisionTree.fit(X_train, y_train)
+    y_pred_DecisionTreeClassifier = model_classification_DecisionTree.predict(X_test)
+    DecisionTree_confusion_matrix = confusion_matrix(
+        y_test, y_pred_DecisionTreeClassifier
+    )
+    DecisionTree_classification_report = classification_report(
+        y_test, y_pred_DecisionTreeClassifier
+    )
+    print("DecisionTreeClassifier")
+    print(DecisionTree_confusion_matrix)
+    print(DecisionTree_classification_report)
 
 
 if __name__ == "__main__":
     main()
 
 # TODO:
-# Cross-Validation -kFold or timeseries split
-# Need to cross-validation, (stride?)
-# Different Model implementations
-# Include Collab Plots
+# Baseline Model
+# Collab Plots
 # Evaluation
 # Report
