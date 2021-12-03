@@ -4,10 +4,12 @@ import sys
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from sklearn import preprocessing
 from sklearn.linear_model import LogisticRegression, Ridge
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.model_selection import cross_val_score, train_test_split
 from sklearn.neighbors import KNeighborsRegressor
+from sklearn.preprocessing import MinMaxScaler, PolynomialFeatures
 
 # High Traffic Volume Sites: 628,305,2; Medium Traffic Sites: 48,36,420,3; Low Traffic Sites : 796, 1,402, 665
 SITES_LIST = [628, 305, 2, 48, 36, 420, 3, 796, 1, 402, 665]
@@ -60,8 +62,8 @@ def visualizeClassifications(df):
     plt.scatter(
         avg_vol_cars_class_two, precipitation_class_two, color="blue", marker="+"
     )
-    plt.xlabel("precipitation")
-    plt.ylabel("avg_vol_cars")
+    plt.xlabel("avg_vol_cars")
+    plt.ylabel("precipitation")
     plt.legend(["Target Value = -1", "Target Value = +1"], bbox_to_anchor=(1.00, 1.15))
     plt.show()
 
@@ -74,13 +76,32 @@ def plot_predictions(
     end_time_in_days,
     time_sampling_interval,
 ):
+
     plt.scatter(timestamps_in_days, y_avg_vol_cars, color="black")
     plt.scatter(end_time_in_days, y_pred, color="blue")
     plt.xlabel("time (days)")
-    plt.ylabel("#bikes")
+    plt.ylabel("avg volume of cars")
     plt.legend(["training data", "predictions"], loc="upper right")
     day = math.floor(24 * 60 * 60 / time_sampling_interval)  # number of samples per day
     # plt.xlim((4 * 10, 4 * 10 + 4))
+    plt.show()
+
+
+def plot_3d_graph(df):
+    precipitation = df.iloc[:, 4]
+    avg_vol_cars = df.iloc[:, 3]
+    end_time = pd.array((pd.DatetimeIndex(df.iloc[:, 0])).astype(np.int64)) / 1000000000
+    timestamps_in_days = (end_time - end_time[0]) / 60 / 60 / 24
+    plt.rc("font", size=18)
+    plt.rcParams["figure.constrained_layout.use"] = True
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection="3d")
+    ax.scatter(precipitation, timestamps_in_days, avg_vol_cars)
+    ax.set_title("Data Points")
+    ax.set_xlabel("Precipitation", labelpad=20.0)
+    ax.set_ylabel("Days", labelpad=20.0)
+    ax.set_zlabel("Average Volume of Cars", labelpad=20.0)
+    ax.legend(["Data points"], loc="best")
     plt.show()
 
 
@@ -237,7 +258,7 @@ def cross_val_classification(
     std_error = []
     q = 3
     stride = 1
-    lag_range = [1, 2, 3, 4, 5, 6]
+    lag_range = list(range(1, 15))
 
     for lag in lag_range:
         cross_val_XX, _, cross_val_yy_classification, _ = featureEngineering(
@@ -267,6 +288,43 @@ def cross_val_classification(
     plt.rc("font", size=18)
     plt.rcParams["figure.constrained_layout.use"] = True
     plt.errorbar(lag_range, mean_error, yerr=std_error, linewidth=3)
+    plt.xlabel("lag")
+    plt.ylabel("F1 Score")
+    plt.title("Logistic Regression Cross Validation Results: Polynomial Feature q")
+    plt.show()
+
+
+def find_optimal_polynomial_order(
+    X, y_classification, y_regression, c_value, model_class
+):
+    mean_error = []
+    std_error = []
+    q_range = [1, 2, 3, 4, 5]
+    for q in q_range:
+        Xpoly = PolynomialFeatures(q).fit_transform(X)
+        if model_class:
+            model = LogisticRegression(
+                penalty="l2", solver="lbfgs", C=c_value, max_iter=1000000
+            )
+            scores = cross_val_score(
+                model,
+                Xpoly,
+                y_classification,
+                cv=5,
+                scoring="f1",
+            )
+        else:
+            model = Ridge(fit_intercept=False)
+            scores = cross_val_score(
+                model, Xpoly, y_regression, cv=5, scoring="neg_mean_squared_error"
+            )
+        print(scores)
+        mean_error.append(np.array(scores).mean())
+        std_error.append(np.array(scores).std())
+
+    plt.rc("font", size=18)
+    plt.rcParams["figure.constrained_layout.use"] = True
+    plt.errorbar(q_range, mean_error, yerr=std_error, linewidth=3)
     plt.xlabel("q")
     plt.ylabel("F1 Score")
     plt.title("Logistic Regression Cross Validation Results: Polynomial Feature q")
@@ -278,7 +336,7 @@ def main():
     df_site_info_ccity = cityCenterSiteMetadata()
     df, selected_sites_df_dict, selected_sites_df_list = selected_sites_df(df)
 
-    SITE_1 = df.Site == 1
+    SITE_1 = df.Site == 628
     df_site_1 = df[SITE_1]
     df_site_1.set_index("End_Time")
 
@@ -303,6 +361,7 @@ def main():
     )
 
     visualize_site_data(timestamps_in_days, y_avg_vol_cars)
+    plot_3d_graph(df_site_1)
     experiment_1(
         y_avg_vol_cars, y_precipitation, timestamps_in_days, time_sampling_interval
     )
@@ -321,6 +380,10 @@ def main():
         lag,
         stride,
     )
+
+    scaler = MinMaxScaler()
+    XX_scaled = scaler.fit_transform(XX)
+    find_optimal_polynomial_order(XX_scaled, yy_classification, yy_regression, 1, True)
 
     train, test = train_test_split(np.arange(0, yy_regression.size), test_size=0.2)
     model = Ridge(fit_intercept=False).fit(XX[train], yy_regression[train])
