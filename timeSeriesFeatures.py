@@ -2,9 +2,12 @@ import pandas as pd
 import numpy as np
 import math, sys
 import matplotlib.pyplot as plt
+from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import Ridge
 from sklearn.neighbors import KNeighborsRegressor
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import cross_val_score
 
 # High Traffic Volume Sites: 628,305,2; Medium Traffic Sites: 48,36,420,3; Low Traffic Sites : 796, 1,402, 665
 SITES_LIST = [628, 305, 2, 48, 36, 420, 3, 796, 1, 402, 665]
@@ -19,6 +22,7 @@ def cityCenterSiteMetadata():
 def selected_sites_df(df):
     sites_df_dict = {}
     sites_df_list = list()
+    df_selected_sites = df[df['Site'].isin(SITES_LIST)]
 
     for count, site in enumerate(SITES_LIST):
         site_id = df.Site == site
@@ -26,7 +30,7 @@ def selected_sites_df(df):
         sites_df_dict[count] = df_site
         sites_df_list.append(df_site)
 
-    return sites_df_dict, sites_df_list
+    return df_selected_sites, sites_df_dict, sites_df_list
 
 
 def visualize_site_data(timestamps_in_days, y_avg_vol_cars):
@@ -37,6 +41,24 @@ def visualize_site_data(timestamps_in_days, y_avg_vol_cars):
     plt.scatter(timestamps_in_days, y_avg_vol_cars, color='blue', marker='.');
     plt.show()
 
+def visualizeClassifications(df):
+    df_class_one = df[df['classification_output'] == -1]
+    df_class_two = df[df['classification_output'] == 1]
+    precipitation_class_one = df_class_one.iloc[:, 4]
+    avg_vol_cars_class_one = df_class_one.iloc[:, 3]
+    precipitation_class_two = df_class_two.iloc[:, 4]
+    avg_vol_cars_class_two = df_class_two.iloc[:, 3]
+    plt.rc('font', size=18)
+    plt.rc('font', size=18)
+    plt.rcParams['figure.constrained_layout.use'] = True
+    plt.scatter(avg_vol_cars_class_one, precipitation_class_one,  color='green', marker='.')
+    plt.scatter( avg_vol_cars_class_two, precipitation_class_two, color='blue', marker='+')
+    plt.xlabel('precipitation')
+    plt.ylabel('avg_vol_cars')
+    plt.legend(['Target Value = -1', 'Target Value = +1'],
+               bbox_to_anchor=(1.00, 1.15))
+    plt.show()
+
 def plot_predictions(plot, y_pred, timestamps_in_days, y_avg_vol_cars, end_time_in_days, time_sampling_interval):
     plt.scatter(timestamps_in_days, y_avg_vol_cars, color='black');
     plt.scatter(end_time_in_days, y_pred, color='blue')
@@ -44,7 +66,7 @@ def plot_predictions(plot, y_pred, timestamps_in_days, y_avg_vol_cars, end_time_
     plt.ylabel("#bikes")
     plt.legend(["training data", "predictions"], loc='upper right')
     day = math.floor(24 * 60 * 60 / time_sampling_interval)  # number of samples per day
-    plt.xlim((4 * 10, 4 * 10 + 4))
+    # plt.xlim((4 * 10, 4 * 10 + 4))
     plt.show()
 
 
@@ -64,6 +86,8 @@ def q_step_ahead_preds(q, dd, lag, plot, y_avg_vol_cars, y_precipitation, timest
     end_time_in_days = timestamps_in_days[lag* dd+q::stride]
     
     train, test = train_test_split(np.arange(0,yy.size),test_size=0.2)
+    print(train)
+    print(test)
     model = Ridge(fit_intercept=False).fit(input_features_XX[train], yy[train])
     # model = KNeighborsRegressor(n_neighbors =10).fit(input_features_XX[train], yy[train]) 
     print(model.intercept_, model.coef_)
@@ -126,13 +150,37 @@ def featureEngineering(time_sampling_interval, y_avg_vol_cars, y_precipitation, 
     
     return features_XX, yy_regression, yy_classification, end_time_in_days
 
+def cross_val_classification(time_sampling_interval, y_avg_vol_cars, y_precipitation, y_classification, timestamps_in_days):
+    mean_error = []
+    std_error = []
+    q = 3; stride = 1
+    lag_range = [1, 2, 3, 4, 5, 6]
+
+    for lag in lag_range:
+        cross_val_XX, _, cross_val_yy_classification, _ = featureEngineering( time_sampling_interval, y_avg_vol_cars, y_precipitation,
+                                                                                 y_classification, timestamps_in_days, q, lag, stride)
+        model_classification = LogisticRegression(penalty='l2', solver='lbfgs', C=1, max_iter=10000)
+        scores = cross_val_score(model_classification, cross_val_XX, cross_val_yy_classification, cv=3, scoring='f1')
+        print(scores)
+        mean_error.append(np.array(scores).mean())
+        std_error.append(np.array(scores).std())
+
+    plt.rc('font', size=18)
+    plt.rcParams['figure.constrained_layout.use'] = True
+    plt.errorbar(lag_range, mean_error, yerr=std_error, linewidth=3)
+    plt.xlabel('q')
+    plt.ylabel('F1 Score')
+    plt.title('Logistic Regression Cross Validation Results: Polynomial Feature q')
+    plt.show()
+
 def main():
     df = pd.read_csv('Datasets/preprocessed-dataset/preproc_classification_data.csv')
     df_site_info_ccity = cityCenterSiteMetadata()
-    selected_sites_df_dict, selected_sites_df_list = selected_sites_df(df)
-
+    df, selected_sites_df_dict, selected_sites_df_list = selected_sites_df(df)
+    
     SITE_1 = df.Site == 1;
     df_site_1 = df[SITE_1]
+    df_site_1.set_index('End_Time')
 
     # convert date/time to unix timestamp in sec
     all_timestamps_in_sec =pd.array((pd.DatetimeIndex(df_site_1.iloc[:,0])).astype(np.int64))/1000000000
@@ -160,11 +208,27 @@ def main():
     plot_predictions(True, y_pred, timestamps_in_days, y_avg_vol_cars, end_time_in_days, time_sampling_interval)
 
 
+    cross_val_classification(time_sampling_interval, y_avg_vol_cars, y_precipitation, y_classification, timestamps_in_days)
+
+    X_train, X_test, y_train, y_test = train_test_split( XX, yy_classification, test_size=0.2)
+    model_classification = LogisticRegression(penalty='l2', solver='lbfgs', C=0.1, max_iter=10000)
+    model_classification.fit(X_train, y_train)
+    y_pred_classification = model_classification.predict(X_test)
+    print(model_classification.intercept_, model_classification.coef_)
+    log_reg_confusion_matrix = confusion_matrix(
+       y_test, y_pred_classification)
+    log_reg_classification_report = classification_report(
+         y_test, y_pred_classification, zero_division=1)
+    print(log_reg_confusion_matrix)
+    print(log_reg_classification_report)
+
+
 if __name__ == '__main__':
     main()
 
 # TODO:
 # Cross-Validation -kFold or timeseries split
+# Need to cross-validation, (stride?)
 # Different Model implementations
 # Include Collab Plots
 # Evaluation
