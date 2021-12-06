@@ -746,9 +746,17 @@ def main():
         y_test_log_reg, y_pred_log_reg
     )
 
-    print("LOGG REGG")
+    print("Logistic Regression")
     print(log_reg_confusion_matrix)
     print(log_reg_classification_report)
+    plot_predictions(
+        True,
+        model_classification_log_reg.predict(XX_poly_log_reg),
+        timestamps_in_days,
+        y_classification,
+        end_time_in_days,
+        time_sampling_interval,
+    )
 
     X_train, X_test, y_train, y_test = train_test_split(
         XX, yy_classification, test_size=0.2
@@ -763,6 +771,14 @@ def main():
     print("KNN")
     print(kNN_confusion_matrix)
     print(kNN_classification_report)
+    plot_predictions(
+        True,
+        model_classification_kNN.predict(XX_poly_log_reg),
+        timestamps_in_days,
+        y_classification,
+        end_time_in_days,
+        time_sampling_interval,
+    )
 
     model_classification_DecisionTree = DecisionTreeClassifier(
         max_depth=decision_tree_depth
@@ -778,6 +794,14 @@ def main():
     print("DecisionTreeClassifier")
     print(DecisionTree_confusion_matrix)
     print(DecisionTree_classification_report)
+    plot_predictions(
+        True,
+        model_classification_DecisionTree.predict(XX_poly_log_reg),
+        timestamps_in_days,
+        y_classification,
+        end_time_in_days,
+        time_sampling_interval,
+    )
 
     dummy_most_frequent = DummyClassifier(strategy="most_frequent")
     dummy_most_frequent.fit(X_train, y_train)
