@@ -9,7 +9,7 @@ $virtualenv .env
 $source .env/bin/activate
 
 # install the project requirements
-# pip install -r requirements.txt
+$pip install -r requirements.txt
 
 #run the project
 # This will save all the plots used for data-visualisation in the Plots folder
