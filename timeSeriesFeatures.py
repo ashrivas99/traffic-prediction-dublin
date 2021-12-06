@@ -849,6 +849,29 @@ def main():
     plt.title("ROC Curve for various trained models")
     plt.savefig("Plots/ROC_Curve_final.png")
     plt.show()
+    ridge_mse = mean_squared_error(
+        yy_regression[test],
+        y_pred_ridge_test,
+        multioutput="uniform_average",
+        squared=True,
+    )
+
+    lasso_mse = mean_squared_error(
+        yy_regression[test],
+        y_pred_lasso_test,
+        multioutput="uniform_average",
+        squared=True,
+    )
+
+    dummy_regressor_mse = mean_squared_error(
+        yy_regression[test],
+        ydummy_regressor_predictions,
+        multioutput="uniform_average",
+        squared=True,
+    )
+    print(f"Ridge MSE: {ridge_mse}")
+    print(f"Lasso MSE: {lasso_mse}")
+    print(f"Dummy Regressor MSE: {dummy_regressor_mse}")
 
 
 if __name__ == "__main__":
