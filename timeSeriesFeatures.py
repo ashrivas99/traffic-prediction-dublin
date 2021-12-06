@@ -301,24 +301,24 @@ def lag_cross_validation(
             model_classification,
             cross_val_XX,
             cross_val_yy_classification,
-            cv=3,
+            cv=5,
             scoring="f1",
         )
         scores_kNN = cross_val_score(
-            model_kNN, cross_val_XX, cross_val_yy_classification, cv=3, scoring="f1"
+            model_kNN, cross_val_XX, cross_val_yy_classification, cv=5, scoring="f1"
         )
         scores_decisionTree = cross_val_score(
             model_decisionTree,
             cross_val_XX,
             cross_val_yy_classification,
-            cv=3,
+            cv=5,
             scoring="f1",
         )
         scores_ridge = cross_val_score(
-            model_ridge, cross_val_XX, cross_val_yy_regression, cv=3, scoring="r2"
+            model_ridge, cross_val_XX, cross_val_yy_regression, cv=5, scoring="r2"
         )
         scores_lasso = cross_val_score(
-            model_lasso, cross_val_XX, cross_val_yy_regression, cv=3, scoring="r2"
+            model_lasso, cross_val_XX, cross_val_yy_regression, cv=5, scoring="r2"
         )
 
         mean_error_log_reg.append(np.array(scores_log_reg).mean())
@@ -847,6 +847,7 @@ def main():
         loc="lower right",
     )
     plt.title("ROC Curve for various trained models")
+    plt.savefig("Plots/ROC_Curve_final.png")
     plt.show()
 
 
