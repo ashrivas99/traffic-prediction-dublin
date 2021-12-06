@@ -16,6 +16,6 @@ $pip install -r requirements.txt
 $python trafficplots.py
 
 
-$This is the main file containing all the models we used
+#This is the main file containing all the models we used
 $python timeSeriesFeatures.py
 ```
