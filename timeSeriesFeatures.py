@@ -8,9 +8,10 @@ from sklearn import preprocessing
 from sklearn.linear_model import Lasso, LogisticRegression, Ridge
 from sklearn.metrics import classification_report, confusion_matrix, mean_squared_error
 from sklearn.model_selection import KFold, cross_val_score, train_test_split
-from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import MinMaxScaler, PolynomialFeatures
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.dummy import DummyClassifier
 
 # High Traffic Volume Sites: 628,305,2; Medium Traffic Sites: 48,36,420,3; Low Traffic Sites : 796, 1,402, 665
 SITES_LIST = [628, 305, 2, 48, 36, 420, 3, 796, 1, 402, 665]
@@ -137,10 +138,7 @@ def q_step_ahead_preds(
     end_time_in_days = timestamps_in_days[lag * dd + q :: stride]
 
     train, test = train_test_split(np.arange(0, yy.size), test_size=0.2)
-    print(train)
-    print(test)
     model = Ridge(fit_intercept=False).fit(input_features_XX[train], yy[train])
-    # model = KNeighborsRegressor(n_neighbors =10).fit(input_features_XX[train], yy[train])
     print(model.intercept_, model.coef_)
 
     if plot:
@@ -248,50 +246,86 @@ def featureEngineering(
     return features_XX, yy_regression, yy_classification, end_time_in_days
 
 
-def cross_val_lag_classification(
+def lag_cross_validation(
     time_sampling_interval,
     y_avg_vol_cars,
     y_precipitation,
     y_classification,
     timestamps_in_days,
 ):
-    mean_error = []
-    std_error = []
+    mean_error_log_reg = []; std_error_log_reg = []
+    mean_error_kNN = []; std_error_kNN = []
+    mean_error_decisionTree = []; std_error_decisionTree = []
+    mean_error_ridge = []; std_error_ridge = []
+    mean_error_lasso = []; std_error_lasso = []
+
     q = 3
     stride = 1
     lag_range = list(range(1, 15))
 
     for lag in lag_range:
-        cross_val_XX, _, cross_val_yy_classification, _ = featureEngineering(
-            time_sampling_interval,
-            y_avg_vol_cars,
-            y_precipitation,
-            y_classification,
-            timestamps_in_days,
-            q,
-            lag,
-            stride,
-        )
+        cross_val_XX, cross_val_yy_regression, cross_val_yy_classification, end_time_in_days = featureEngineering(time_sampling_interval, y_avg_vol_cars, y_precipitation, y_classification,
+            timestamps_in_days, q, lag, stride)
+        
         model_classification = LogisticRegression(
-            penalty="l2", solver="lbfgs", C=1, max_iter=10000
+            penalty="l2", solver="lbfgs", C=1, max_iter=100000
         )
-        scores = cross_val_score(
-            model_classification,
-            cross_val_XX,
-            cross_val_yy_classification,
-            cv=3,
-            scoring="f1",
-        )
-        print(scores)
-        mean_error.append(np.array(scores).mean())
-        std_error.append(np.array(scores).std())
+        model_kNN =  KNeighborsClassifier(weights="uniform")
+        model_decisionTree = DecisionTreeClassifier(max_depth=1)
+        model_ridge = Ridge(max_iter=100000)
+        model_lasso = Lasso(max_iter=100000)
+        
+        scores_log_reg = cross_val_score( model_classification, cross_val_XX, cross_val_yy_classification, cv=3, scoring="f1")
+        scores_kNN = cross_val_score( model_kNN, cross_val_XX, cross_val_yy_classification, cv=3, scoring="f1")
+        scores_decisionTree = cross_val_score( model_decisionTree, cross_val_XX, cross_val_yy_classification, cv=3, scoring="f1")
+        scores_ridge = cross_val_score( model_ridge, cross_val_XX, cross_val_yy_regression, cv=3, scoring="r2")
+        scores_lasso = cross_val_score( model_lasso, cross_val_XX, cross_val_yy_regression, cv=3, scoring="r2")
+
+        mean_error_log_reg.append(np.array(scores_log_reg).mean()); std_error_log_reg.append(np.array(scores_log_reg).std())
+        mean_error_kNN.append(np.array(scores_kNN).mean()); std_error_kNN.append(np.array(scores_kNN).std())
+        mean_error_decisionTree.append(np.array(scores_decisionTree).mean()); std_error_decisionTree.append(np.array(scores_decisionTree).std())
+        mean_error_lasso.append(np.array(scores_lasso).mean()); std_error_lasso.append(np.array(scores_lasso).std())
+        mean_error_ridge.append(np.array(scores_ridge).mean()); std_error_ridge.append(np.array(scores_ridge).std())
+
+    
+    plt.rc("font", size=18)
+    plt.rcParams["figure.constrained_layout.use"] = True
+    plt.errorbar(lag_range, mean_error_log_reg, yerr=std_error_log_reg, linewidth=3)
+    plt.xlabel("lag")
+    plt.ylabel("F1 Score")
+    plt.title("Logistic Regression Cross Validation Results: Lag")
+    plt.show()
 
     plt.rc("font", size=18)
     plt.rcParams["figure.constrained_layout.use"] = True
-    plt.errorbar(lag_range, mean_error, yerr=std_error, linewidth=3)
+    plt.errorbar(lag_range, mean_error_kNN, yerr=std_error_kNN, linewidth=3)
     plt.xlabel("lag")
     plt.ylabel("F1 Score")
-    plt.title("Logistic Regression Cross Validation Results: Polynomial Feature q")
+    plt.title("kNN Cross Validation Results: Lag")
+    plt.show()
+
+    plt.rc("font", size=18)
+    plt.rcParams["figure.constrained_layout.use"] = True
+    plt.errorbar(lag_range, mean_error_decisionTree, yerr=std_error_decisionTree, linewidth=3)
+    plt.xlabel("lag")
+    plt.ylabel("F1 Score")
+    plt.title("Decision Trees Cross Validation Results: Lag")
+    plt.show()
+
+    plt.rc("font", size=18)
+    plt.rcParams["figure.constrained_layout.use"] = True
+    plt.errorbar(lag_range, mean_error_lasso, yerr=std_error_lasso, linewidth=3)
+    plt.xlabel("lag")
+    plt.ylabel("r2")
+    plt.title("Lasso Regression Cross Validation Results: Lag")
+    plt.show()
+
+    plt.rc("font", size=18)
+    plt.rcParams["figure.constrained_layout.use"] = True
+    plt.errorbar(lag_range, mean_error_ridge, yerr=std_error_ridge, linewidth=3)
+    plt.xlabel("lag")
+    plt.ylabel("r2")
+    plt.title("Ridge Regression Cross Validation Results: Lag")
     plt.show()
 
 
@@ -496,10 +530,14 @@ def main():
     visualize_site_data(timestamps_in_days, y_avg_vol_cars)
     plot_3d_graph(df_site_1)
     experiment_1(y_avg_vol_cars, y_precipitation, timestamps_in_days, time_sampling_interval)
-    cross_val_lag_classification(time_sampling_interval, y_avg_vol_cars, y_precipitation,y_classification, timestamps_in_days)
+    lag_cross_validation(time_sampling_interval, y_avg_vol_cars, y_precipitation,y_classification, timestamps_in_days)
+    
+    # Taking 4 as most optimal value
+    lag_value = int(input("Please choose the desired Lag value for your time series models:    "))
+    # lag_value = 4
 
     # putting it together
-    q = 10; lag = 3; stride = 1
+    q = 10; lag =lag_value; stride = 1
     XX, yy_regression, yy_classification, end_time_in_days = featureEngineering(time_sampling_interval, y_avg_vol_cars, 
                                                                 y_precipitation, y_classification, timestamps_in_days, q, lag, stride)
 
@@ -549,53 +587,57 @@ def main():
     k_value = int(input("Please choose the desired 'k' value for the kNN model:    "))
 
     decision_tree_depth_value_finder(XX, yy_classification)
+    decision_tree_depth = int(input("Please choose the desired 'decision_tree_depth' value for the Decision Tree model:    "))
 
     train, test = train_test_split(np.arange(0, yy_regression.size), test_size=0.2)
-    alpha_ridge = 1 / (2 * C_value_ridge)
-    model_ridge = Ridge(fit_intercept=False, alpha=alpha_ridge).fit(
-        XX[train], yy_regression[train]
-    )
+   
+    model_ridge = Ridge(fit_intercept=False, alpha=1 / (2 * C_value_ridge)).fit(XX_poly_ridge_reg[train], yy_regression[train])
     print(model_ridge.intercept_, model_ridge.coef_)
-    y_pred = model_ridge.predict(XX)
+    y_pred_ridge = model_ridge.predict(XX_poly_ridge_reg)
+    y_pred_ridge_test = model_ridge.predict(XX_poly_ridge_reg[test])
     plot_predictions(
         True,
-        y_pred,
+        y_pred_ridge,
         timestamps_in_days,
         y_avg_vol_cars,
         end_time_in_days,
         time_sampling_interval,
     )
 
-    alpha_lasso = 1 / C_value_lasso
-    model_lasso = Lasso(fit_intercept=False, alpha=alpha_lasso).fit(
-        XX[train], yy_regression[train]
-    )
+    model_lasso = Lasso(fit_intercept=False, alpha=1 /(C_value_lasso)).fit(XX_poly_lasso_reg[train], yy_regression[train])
     print(model_lasso.intercept_, model_lasso.coef_)
-    y_pred = model_lasso.predict(XX)
+    y_pred_lasso = model_lasso.predict(XX_poly_lasso_reg)
+    y_pred_lasso_test = model_lasso.predict(XX_poly_lasso_reg[test])
     plot_predictions(
         True,
-        y_pred,
+        y_pred_lasso,
         timestamps_in_days,
         y_avg_vol_cars,
         end_time_in_days,
         time_sampling_interval,
     )
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        XX, yy_classification, test_size=0.2
+    X_train_log_reg, X_test_log_reg, y_train_log_reg, y_test_log_reg = train_test_split(
+        XX_poly_log_reg, yy_classification, test_size=0.2
     )
     model_classification_log_reg = LogisticRegression(
         penalty="l2", solver="lbfgs", C=C_value_log_reg, max_iter=10000
     )
-    model_classification_log_reg.fit(X_train, y_train)
-    y_pred_log_reg = model_classification_log_reg.predict(X_test)
+    model_classification_log_reg.fit(X_train_log_reg, y_train_log_reg)
+    y_pred_log_reg = model_classification_log_reg.predict(X_test_log_reg)
     print(model_classification_log_reg.intercept_, model_classification_log_reg.coef_)
-    log_reg_confusion_matrix = confusion_matrix(y_test, y_pred_log_reg)
-    log_reg_classification_report = classification_report(y_test, y_pred_log_reg)
+
+    log_reg_confusion_matrix = confusion_matrix(y_test_log_reg, y_pred_log_reg)
+    log_reg_classification_report = classification_report(y_test_log_reg, y_pred_log_reg)
+
     print("LOGG REGG")
     print(log_reg_confusion_matrix)
     print(log_reg_classification_report)
 
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        XX, yy_classification, test_size=0.2
+    )
     model_classification_kNN = KNeighborsClassifier(
         n_neighbors=k_value, weights="uniform"
     )
@@ -607,7 +649,7 @@ def main():
     print(kNN_confusion_matrix)
     print(kNN_classification_report)
 
-    model_classification_DecisionTree = DecisionTreeClassifier(max_depth=1)
+    model_classification_DecisionTree = DecisionTreeClassifier(max_depth=decision_tree_depth)
     model_classification_DecisionTree.fit(X_train, y_train)
     y_pred_DecisionTreeClassifier = model_classification_DecisionTree.predict(X_test)
     DecisionTree_confusion_matrix = confusion_matrix(
@@ -619,6 +661,26 @@ def main():
     print("DecisionTreeClassifier")
     print(DecisionTree_confusion_matrix)
     print(DecisionTree_classification_report)
+
+    dummy_most_frequent = DummyClassifier(strategy="most_frequent")
+    dummy_most_frequent.fit(X_train, y_train)
+    ydummy_most_frequent_predictions = dummy_most_frequent.predict(X_test)
+    dummy_most_frequent_confusion_matrix = confusion_matrix(
+        y_test, ydummy_most_frequent_predictions)
+    dummy_most_frequent_classification_report = classification_report(
+        y_test, ydummy_most_frequent_predictions)
+    print(dummy_most_frequent_confusion_matrix)
+    print(dummy_most_frequent_classification_report)
+
+    dummy_uniform = DummyClassifier(strategy="uniform")
+    dummy_uniform.fit(X_train, y_train)
+    ydummy_uniform_predictions = dummy_uniform.predict(X_test)
+    dummy_uniform_confusion_matrix = confusion_matrix(
+        y_test, ydummy_uniform_predictions)
+    dummy_uniform_classification_report = classification_report(
+        y_test, ydummy_uniform_predictions)
+    print(dummy_uniform_confusion_matrix)
+    print(dummy_uniform_classification_report)
 
 
 if __name__ == "__main__":
