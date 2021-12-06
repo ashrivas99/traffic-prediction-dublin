@@ -6,8 +6,8 @@ import numpy as np
 import pandas as pd
 from sklearn import preprocessing
 from sklearn.linear_model import Lasso, LogisticRegression, Ridge
-from sklearn.metrics import classification_report, confusion_matrix
-from sklearn.model_selection import cross_val_score, train_test_split
+from sklearn.metrics import classification_report, confusion_matrix, mean_squared_error
+from sklearn.model_selection import KFold, cross_val_score, train_test_split
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.preprocessing import MinMaxScaler, PolynomialFeatures
 from sklearn.tree import DecisionTreeClassifier
@@ -295,35 +295,16 @@ def cross_val_lag_classification(
     plt.show()
 
 
-def find_optimal_polynomial_order(X, y_classification, y_regression, model_class):
+def LogRegPolynomialOrderCrossValidation(X, y_classification):
     mean_error = []
     std_error = []
     q_range = [1, 2, 3, 4, 5]
     for q in q_range:
         Xpoly = PolynomialFeatures(q).fit_transform(X)
-        if model_class == 1:
-            model = LogisticRegression(penalty="l2", solver="lbfgs", max_iter=1000000)
-            scores = cross_val_score(
-                model,
-                Xpoly,
-                y_classification,
-                cv=5,
-                scoring="f1",
-            )
-        elif model_class == 2:
-            model = Lasso(fit_intercept=False)
-            scores = cross_val_score(
-                model, Xpoly, y_regression, cv=5, scoring="neg_mean_squared_error"
-            )
-        elif model_class == 3:
-            model = Ridge(fit_intercept=False)
-            scores = cross_val_score(
-                model, Xpoly, y_regression, cv=5, scoring="neg_mean_squared_error"
-            )
-        print(scores)
+        model = LogisticRegression(penalty="l2", solver="lbfgs", max_iter=1000000)
+        scores = cross_val_score(model, Xpoly, y_classification, cv=5, scoring="f1")
         mean_error.append(np.array(scores).mean())
         std_error.append(np.array(scores).std())
-
     plt.rc("font", size=18)
     plt.rcParams["figure.constrained_layout.use"] = True
     plt.errorbar(q_range, mean_error, yerr=std_error, linewidth=3)
@@ -332,35 +313,69 @@ def find_optimal_polynomial_order(X, y_classification, y_regression, model_class
     plt.title("Logistic Regression Cross Validation Results: Polynomial Feature q")
     plt.show()
 
-
-def find_optimal_C_value(X, y_classification, y_regression, model_class, Ci_range):
+# Using 5 fold cross validation to find the optimal C value for Lasso regression
+def LassoPolynomialOrderCrossValidation(X, y_regression):
+    kf = KFold(n_splits=5)
     mean_error = []
     std_error = []
-    for Ci in Ci_range:
-        if model_class == 1:
-            model = LogisticRegression(
-                penalty="l2", solver="lbfgs", C=Ci, max_iter=1000000
-            )
-            scores = cross_val_score(
-                model,
-                X,
-                y_classification,
-                cv=5,
-                scoring="f1",
-            )
-        elif model_class == 2:
-            alpha = 1 / Ci
-            model = Lasso(alpha=alpha, fit_intercept=False, max_iter=100000)
-            scores = cross_val_score(
-                model, X, y_regression, cv=5, scoring="neg_mean_squared_error"
-            )
-        elif model_class == 3:
-            alpha = 1 / (2 * Ci)
-            model = Ridge(alpha=alpha, fit_intercept=False, max_iter=100000)
-            scores = cross_val_score(
-                model, X, y_regression, cv=5, scoring="neg_mean_squared_error"
-            )
+    q_range = [1,2,3,4,5]
+    for q in q_range:
+        Xpoly = PolynomialFeatures(q).fit_transform(X)
+        lasso_model = Lasso()
+        temp = [] 
+        for train, test in kf.split(X):
+            lasso_model.fit(Xpoly[train], y_regression[train])
+            ypred = lasso_model.predict(Xpoly[test])
+            temp.append(mean_squared_error(y_regression[test], ypred))
+        mean_error.append(np.array(temp).mean())
+        std_error.append(np.array(temp).std())
+    plt.rc('font', size=18)
+    plt.rcParams['figure.constrained_layout.use'] = True
+    plt.errorbar(q_range, mean_error, yerr=std_error, linewidth=3)
+    plt.xlabel('q')
+    plt.ylabel('Mean square error')
+    plt.title('Lasso Regression Cross Validation Results: Polynomial Feature q')
+    plt.show()
 
+def RidgePolynomialOrderCrossValidation(X, y_regression):
+    kf = KFold(n_splits=5)
+    mean_error = []
+    std_error = []
+    q_range = [1,2,3,4,5]
+    for q in q_range:
+        Xpoly = PolynomialFeatures(q).fit_transform(X)
+        ridge_model = Ridge()
+        temp = [] 
+        for train, test in kf.split(X):
+            ridge_model.fit(Xpoly[train], y_regression[train])
+            ypred = ridge_model.predict(Xpoly[test])
+            temp.append(mean_squared_error(y_regression[test], ypred))
+        mean_error.append(np.array(temp).mean())
+        std_error.append(np.array(temp).std())
+    plt.rc('font', size=18)
+    plt.rcParams['figure.constrained_layout.use'] = True
+    plt.errorbar(q_range, mean_error, yerr=std_error, linewidth=3)
+    plt.xlabel('q')
+    plt.ylabel('Mean square error')
+    plt.title('Ridge Regression Cross Validation Results: Polynomial Feature q')
+    plt.show()
+
+
+def LogRegCvalueCrossValidation(X, y_classification):
+    mean_error = []
+    std_error = []
+    Ci_range = [0.01, 0.1, 1, 5, 10, 25, 50, 100]
+    for Ci in Ci_range:
+        model = LogisticRegression(
+            penalty="l2", solver="lbfgs", C=Ci, max_iter=1000000
+        )
+        scores = cross_val_score(
+            model,
+            X,
+            y_classification,
+            cv=5,
+            scoring="f1",
+        )
         mean_error.append(np.array(scores).mean())
         std_error.append(np.array(scores).std())
     plt.rc("font", size=18)
@@ -369,6 +384,59 @@ def find_optimal_C_value(X, y_classification, y_regression, model_class, Ci_rang
     plt.xlabel("Ci")
     plt.ylabel("F1 Score")
     plt.title("Logistic Regression Cross Validation Results: Penalty Parameter Ci")
+    plt.show()
+
+# Using 5 fold cross validation to find the optimal C value for Lasso regression
+def LassoRegressionCrossValidation(X, y_regression):
+    mean_error = []
+    std_error = []
+    Ci_range = [0.1, 0.5, 1, 5, 10, 50, 100, 500]
+    for Ci in Ci_range:
+        lasso_model = Lasso(alpha=1/(Ci))
+        temp = []
+        kf = KFold(n_splits=5)
+        for train, test in kf.split(X):
+            lasso_model.fit(X[train], y_regression[train])
+            ypred = lasso_model.predict(X[test])
+            temp.append(mean_squared_error(y_regression[test], ypred))
+        mean_error.append(np.array(temp).mean())
+        std_error.append(np.array(temp).std())
+    plt.rc('font', size=18)
+    plt.rcParams['figure.constrained_layout.use'] = True
+    mean_error = np.array(mean_error)
+    std_error = np.array(std_error)
+    plt.errorbar(Ci_range, mean_error, yerr=std_error)
+    plt.xlabel('Ci')
+    plt.ylabel('Mean square error')
+    plt.title('Lasso Regression Cross Validation for wide range of Ci')
+    plt.xlim((0, 200))
+    plt.show()
+
+
+# Using 5 fold cross validation to find the optimal C value for Ridge regression
+def RidgeRegressionCrossValidation(X, y_regression):
+    mean_error = []
+    std_error = []
+    Ci_range = [0.1, 0.5, 1, 5, 10, 50, 100, 500]
+    for Ci in Ci_range:
+        ridge_model = Lasso(alpha=1/(Ci), max_iter=100000)
+        temp = []
+        kf = KFold(n_splits=5)
+        for train, test in kf.split(X):
+            ridge_model.fit(X[train], y_regression[train])
+            ypred = ridge_model.predict(X[test])
+            temp.append(mean_squared_error(y_regression[test], ypred))
+        mean_error.append(np.array(temp).mean())
+        std_error.append(np.array(temp).std())
+    plt.rc('font', size=18)
+    plt.rcParams['figure.constrained_layout.use'] = True
+    mean_error = np.array(mean_error)
+    std_error = np.array(std_error)
+    plt.errorbar(Ci_range, mean_error, yerr=std_error)
+    plt.xlabel('Ci')
+    plt.ylabel('Mean square error')
+    plt.title('Ridge Regression Cross Validation for wide range of Ci')
+    plt.xlim((0, 200))
     plt.show()
 
 
@@ -395,7 +463,7 @@ def decision_tree_depth_value_finder(X, y_classification):
     std_error = []
     depth_range = list(range(1, 31))
     for depth in depth_range:
-        model = DecisionTreeClassifier(max_depth=1)
+        model = DecisionTreeClassifier(max_depth=depth)
         scores = cross_val_score(model, X, y_classification, cv=5, scoring="f1")
         mean_error.append(np.array(scores).mean())
         std_error.append(np.array(scores).std())
@@ -404,7 +472,7 @@ def decision_tree_depth_value_finder(X, y_classification):
     plt.errorbar(depth_range, mean_error, yerr=std_error, linewidth=3)
     plt.xlabel("max_depth")
     plt.ylabel("F1 Score")
-    plt.title("Decision Tree Classifier Cross Validation Results: k Value")
+    plt.title("Decision Tree Classifier Cross Validation Results: Tree Depth Value")
     plt.show()
 
 
@@ -413,96 +481,74 @@ def main():
     df_site_info_ccity = cityCenterSiteMetadata()
     df, selected_sites_df_dict, selected_sites_df_list = selected_sites_df(df)
 
-    SITE_1 = df.Site == 628
-    df_site_1 = df[SITE_1]
-    df_site_1.set_index("End_Time")
+    SITE_1 = df.Site == 628; df_site_1 = df[SITE_1]; df_site_1.set_index("End_Time")
 
     # convert date/time to unix timestamp in sec
-    all_timestamps_in_sec = (
-        pd.array((pd.DatetimeIndex(df_site_1.iloc[:, 0])).astype(np.int64)) / 1000000000
-    )
+    all_timestamps_in_sec = ( pd.array((pd.DatetimeIndex(df_site_1.iloc[:, 0])).astype(np.int64)) / 1000000000)
     time_sampling_interval = all_timestamps_in_sec[1] - all_timestamps_in_sec[0]
     print("data sampling interval is %d secs" % time_sampling_interval)
 
-    timestamps_in_days = (
-        (all_timestamps_in_sec - all_timestamps_in_sec[0]) / 60 / 60 / 24
-    )  # convert timestamp to days
-    y_avg_vol_cars = np.extract(all_timestamps_in_sec, df_site_1.iloc[:, 3]).astype(
-        np.int64
-    )
-    y_precipitation = np.extract(all_timestamps_in_sec, df_site_1.iloc[:, 4]).astype(
-        np.int64
-    )
-    y_classification = np.extract(all_timestamps_in_sec, df_site_1.iloc[:, 6]).astype(
-        np.int64
-    )
+    timestamps_in_days = ((all_timestamps_in_sec - all_timestamps_in_sec[0]) / 60 / 60 / 24)  # convert timestamp to days
+    y_avg_vol_cars = np.extract(all_timestamps_in_sec, df_site_1.iloc[:, 3]).astype(np.int64)
+    y_precipitation = np.extract(all_timestamps_in_sec, df_site_1.iloc[:, 4]).astype(np.int64)
+    y_classification = np.extract(all_timestamps_in_sec, df_site_1.iloc[:, 6]).astype(np.int64)
 
-    # visualize_site_data(timestamps_in_days, y_avg_vol_cars)
-    # plot_3d_graph(df_site_1)
-    # experiment_1(
-    #     y_avg_vol_cars, y_precipitation, timestamps_in_days, time_sampling_interval
-    # )
+    visualize_site_data(timestamps_in_days, y_avg_vol_cars)
+    plot_3d_graph(df_site_1)
+    experiment_1(y_avg_vol_cars, y_precipitation, timestamps_in_days, time_sampling_interval)
+    cross_val_lag_classification(time_sampling_interval, y_avg_vol_cars, y_precipitation,y_classification, timestamps_in_days)
 
     # putting it together
-    q = 10
-    lag = 3
-    stride = 1
-    XX, yy_regression, yy_classification, end_time_in_days = featureEngineering(
-        time_sampling_interval,
-        y_avg_vol_cars,
-        y_precipitation,
-        y_classification,
-        timestamps_in_days,
-        q,
-        lag,
-        stride,
-    )
+    q = 10; lag = 3; stride = 1
+    XX, yy_regression, yy_classification, end_time_in_days = featureEngineering(time_sampling_interval, y_avg_vol_cars, 
+                                                                y_precipitation, y_classification, timestamps_in_days, q, lag, stride)
 
     scaler = MinMaxScaler()
     XX_scaled = scaler.fit_transform(XX)
-    find_optimal_polynomial_order(
-        XX_scaled, yy_classification, yy_regression, 1
-    )  # Log reg
-    find_optimal_polynomial_order(XX_scaled, yy_classification, yy_regression, 2)
-    find_optimal_polynomial_order(
-        XX_scaled, yy_classification, yy_regression, 3
-    )  # Ridge reg
-    polynomial_order_value = int(
-        input("Please choose the desired polynomial order 'q' value:    ")
-    )
-    XX_poly = PolynomialFeatures(polynomial_order_value).fit_transform(XX)
 
-    Ci_range_log_reg = [0.001, 0.01, 0.1, 1, 5, 10, 25, 50, 100, 250]
-    Ci_range_regression = [0.001, 0.01, 0.1, 1, 10, 100, 1000, 10000, 100000]
-    find_optimal_C_value(XX_poly, yy_classification, yy_regression, 1, Ci_range_log_reg)
-    C_value_log_reg = int(
-        input("Please choose the desired 'k' value for the Logistic Regression:    ")
-    )
-    find_optimal_C_value(
-        XX_poly, yy_classification, yy_regression, 2, Ci_range_regression
-    )
+    LogRegPolynomialOrderCrossValidation(XX_scaled, yy_classification)
+    q_log_reg = int(input("Please choose the desired polynomial order for Logistic Regression 'q' value:    "))
+   
+    if(q_log_reg == 1):
+        XX_poly_log_reg = XX
+    else:
+        XX_poly_log_reg = PolynomialFeatures(q_log_reg).fit_transform(XX_scaled)
+
+    LassoPolynomialOrderCrossValidation(XX_scaled, yy_regression)
+    q_lasso_reg = int(input("Please choose the desired polynomial order for Lasso Regression 'q' value:    "))
+    
+    if(q_lasso_reg == 1):
+        XX_poly_lasso_reg = XX
+    else:
+        XX_poly_lasso_reg = PolynomialFeatures(q_lasso_reg).fit_transform(XX_scaled)
+
+    RidgePolynomialOrderCrossValidation(XX_scaled, yy_regression)
+    q_ridge_reg = int(input("Please choose the desired polynomial order for Ridge Regression 'q' value:    "))
+    
+    if(q_ridge_reg == 1):
+        XX_poly_ridge_reg = XX
+    else:
+        XX_poly_ridge_reg = PolynomialFeatures(q_ridge_reg).fit_transform(XX_scaled)
+    
+
+    LogRegCvalueCrossValidation(XX_poly_log_reg, yy_classification)
+    C_value_log_reg = int(input("Please choose the desired 'C' value for the Logistic Regression:    "))
+
+    LassoRegressionCrossValidation(XX_poly_lasso_reg, yy_regression)
     C_value_lasso = int(
         input("Please choose the desired 'C' value for the Lasso Regression model:    ")
     )
-    find_optimal_C_value(
-        XX_poly, yy_classification, yy_regression, 3, Ci_range_regression
-    )
+
+    RidgeRegressionCrossValidation(XX_poly_ridge_reg, yy_regression)
     C_value_ridge = int(
         input("Please choose the desired 'C' value for the Ridge Regression model:    ")
     )
-    kNN_k_value_finder(XX_poly, yy_classification)
-    # k-value 15
+
+    # k-value 11
+    kNN_k_value_finder(XX, yy_classification)
     k_value = int(input("Please choose the desired 'k' value for the kNN model:    "))
 
     decision_tree_depth_value_finder(XX, yy_classification)
-
-    cross_val_lag_classification(
-        time_sampling_interval,
-        y_avg_vol_cars,
-        y_precipitation,
-        y_classification,
-        timestamps_in_days,
-    )
 
     train, test = train_test_split(np.arange(0, yy_regression.size), test_size=0.2)
     alpha_ridge = 1 / (2 * C_value_ridge)
