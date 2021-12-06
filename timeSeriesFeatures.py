@@ -12,6 +12,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import MinMaxScaler, PolynomialFeatures
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.dummy import DummyClassifier
+from sklearn.dummy import DummyRegressor
 
 # High Traffic Volume Sites: 628,305,2; Medium Traffic Sites: 48,36,420,3; Low Traffic Sites : 796, 1,402, 665
 SITES_LIST = [628, 305, 2, 48, 36, 420, 3, 796, 1, 402, 665]
@@ -617,6 +618,20 @@ def main():
         time_sampling_interval,
     )
 
+    print("Dummy Regressor")
+    dummy_regressor = DummyRegressor(strategy="median")
+    dummy_regressor.fit(XX_poly_lasso_reg[train], yy_regression[train])
+    ydummy_regressor_predictions= dummy_regressor.predict(XX_poly_lasso_reg[test])
+    dummy_regressor.score(XX_poly_lasso_reg[test], yy_regression[test])
+    plot_predictions(
+        True,
+        dummy_regressor.predict(XX_poly_lasso_reg),
+        timestamps_in_days,
+        y_avg_vol_cars,
+        end_time_in_days,
+        time_sampling_interval,
+    )
+
     X_train_log_reg, X_test_log_reg, y_train_log_reg, y_test_log_reg = train_test_split(
         XX_poly_log_reg, yy_classification, test_size=0.2
     )
@@ -681,6 +696,42 @@ def main():
         y_test, ydummy_uniform_predictions)
     print(dummy_uniform_confusion_matrix)
     print(dummy_uniform_classification_report)
+
+# __________________________________________________________ROC Curve__________________________________________________________________
+    from sklearn.metrics import roc_curve
+    fpr_log_reg, tpr_log_reg, _ = roc_curve(
+        y_test_log_reg, model_classification_log_reg.decision_function(X_test_log_reg))
+
+    y_scores_kNN = model_classification_kNN.predict_proba(X_test)
+    fpr_kNN, tpr_kNN, _ = roc_curve(
+        y_test, y_scores_kNN[:, 1])
+
+    y_scores_DecisionTree = model_classification_DecisionTree.predict_proba(X_test)
+    fpr_DecisionTree, tpr_DecisionTree, _ = roc_curve(
+        y_test, y_scores_DecisionTree[:, 1])
+
+    y_scores_dummy_uniform = dummy_uniform.predict_proba(X_test)
+    fpr_dummy_uniform, tpr_dummy_uniform, _ = roc_curve(
+        y_test, y_scores_dummy_uniform[:, 1])
+
+    y_scores_dummy_most_frequent = dummy_most_frequent.predict_proba(
+        X_test)
+    fpr_dummy_most_frequent, fpr_dummy_most_frequent, _ = roc_curve(
+        y_test, y_scores_dummy_most_frequent[:, 1])
+
+    plt.plot(fpr_log_reg, tpr_log_reg, color='r')
+    plt.plot(fpr_kNN, tpr_kNN, color='g')
+    plt.plot(fpr_DecisionTree, tpr_DecisionTree, color='magenta')
+    plt.plot(fpr_dummy_uniform, tpr_dummy_uniform,
+             color='b', linestyle='-.')
+    plt.plot(fpr_dummy_most_frequent, fpr_dummy_most_frequent,
+             color='black', linestyle=':')
+    plt.xlabel('False positive rate')
+    plt.ylabel('True positive rate')
+    plt.legend(['Logistic Regression', 'kNN Classifier', 'Decision Tree Classifier',
+               'Dummy Classifier(uniform)', 'Dummy Classifier most_frequent'], loc='lower right')
+    plt.title('ROC Curve for various trained models')
+    plt.show()
 
 
 if __name__ == "__main__":
